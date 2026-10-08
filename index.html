@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TikTok Gift Effects — OBS Overlay</title>
+<style>
+  :root {
+    --text: #fff;
+    --muted: rgba(255,255,255,.82);
+    --panel: rgba(12, 14, 20, .78);
+    --edge: rgba(255,255,255,.16);
+    --cyan: #25f4ee;
+    --pink: #fe2c55;
+    --speed-gifts: 72s;
+    --speed-text: 36s;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--text);
+  }
+  .overlay {
+    position: absolute;
+    left: 0; right: 0; bottom: 3.5%;
+    display: grid;
+    gap: 10px;
+    padding: 0 2.2%;
+    pointer-events: none;
+  }
+  .lane {
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--edge);
+    border-radius: 16px;
+    background: var(--panel);
+    box-shadow: 0 6px 24px rgba(0,0,0,.14);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+  .gift-lane { padding: 10px 0; }
+  .track {
+    display: flex;
+    width: max-content;
+    will-change: transform;
+    animation: scroll var(--speed-gifts) linear infinite;
+  }
+  .gift-lane:hover .track, .text-lane:hover .text-track { animation-play-state: paused; }
+  .gift-set { display: flex; align-items: stretch; gap: 10px; padding-right: 10px; }
+  .gift-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 230px;
+    max-width: 230px;
+    padding: 8px 13px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px;
+    background: rgba(255,255,255,.055);
+  }
+  .gift-icon-wrap {
+    width: 48px; height: 48px; flex: 0 0 48px;
+    display: grid; place-items: center;
+    border-radius: 11px;
+    background: rgba(255,255,255,.08);
+    overflow: hidden;
+  }
+  .gift-icon {
+    width: 42px; height: 42px; object-fit: contain;
+    image-rendering: auto;
+  }
+  .emoji-fallback { font-size: 30px; line-height: 1; }
+  .gift-name { font-size: 13px; font-weight: 800; letter-spacing: .02em; line-height: 1.2; }
+  .gift-effect { margin-top: 4px; font-size: 12px; color: var(--muted); line-height: 1.25; }
+  .text-lane { padding: 9px 0; }
+  .text-track {
+    display: flex; width: max-content; align-items: center;
+    animation: scroll var(--speed-text) linear infinite;
+    will-change: transform;
+  }
+  .text-set { display: flex; align-items: center; gap: 36px; padding-right: 36px; }
+  .ticker-message {
+    white-space: nowrap; font-size: clamp(14px, 1.3vw, 19px);
+    font-weight: 800; letter-spacing: .015em;
+  }
+  .ticker-message.follow { color: var(--cyan); }
+  .ticker-message.prize { color: #fff; }
+  .separator { color: var(--pink); font-size: 19px; }
+  @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) {
+    .track, .text-track { animation-duration: 180s; }
+  }
+</style>
+</head>
+<body>
+<div class="overlay" aria-label="Scrolling TikTok gift effects banner">
+  <div class="lane gift-lane">
+    <div class="track" id="giftTrack"></div>
+  </div>
+  <div class="lane text-lane">
+    <div class="text-track" id="textTrack"></div>
+  </div>
+</div>
+<script>
+/*
+  OFFICIAL GIFT ICONS:
+  Put official TikTok gift icon files in the ./gifts/ folder using the filenames
+  shown below (PNG or WebP), or edit each `icon` path to your own downloaded file.
+  If an icon file is missing, a simple emoji fallback is shown.
+  This overlay displays the gift-to-effect labels; it does not trigger the effects.
+*/
+const gifts = [
+  { name: "Hand Heart", effect: "Windows Error", icon: "gifts/hand-heart.webp", fallback: "🫶" },
+  { name: "Perfume", effect: "Brightness Up", icon: "gifts/perfume.webp", fallback: "🧴" },
+  { name: "Rosa", effect: "Dim Screen", icon: "gifts/rosa.webp", fallback: "🌹" },
+  { name: "Go Popular", effect: "Michael Jackson Hee Hee", icon: "gifts/go-popular.webp", fallback: "⭐" },
+  { name: "Any 1 Coin Gift", effect: "Penalty Shootout", icon: "gifts/one-coin-gift.webp", fallback: "🪙" },
+  { name: "Super GG", effect: "Pepsi Man", icon: "gifts/super-gg.webp", fallback: "🥤" },
+  { name: "Heart Me", effect: "Celine Dion mime", icon: "gifts/heart-me.webp", fallback: "💗" },
+  { name: "Doughnut", effect: "DVD Logo Bounce", icon: "gifts/doughnut.webp", fallback: "🍩" },
+  { name: "Galaxy", effect: "Score own Goal", icon: "gifts/galaxy.webp", fallback: "🌌" },
+  { name: "Ellie the Elephant", effect: "End Stream + go live at Odeon", icon: "gifts/ellie-the-elephant.webp", fallback: "🐘" }
+];
+
+function makeGiftSet() {
+  const set = document.createElement("div");
+  set.className = "gift-set";
+  gifts.forEach(g => {
+    const card = document.createElement("div");
+    card.className = "gift-card";
+    const wrap = document.createElement("div");
+    wrap.className = "gift-icon-wrap";
+    const img = document.createElement("img");
+    img.className = "gift-icon";
+    img.src = g.icon;
+    img.alt = g.name;
+    img.loading = "eager";
+    img.onerror = () => {
+      img.remove();
+      const fallback = document.createElement("span");
+      fallback.className = "emoji-fallback";
+      fallback.textContent = g.fallback;
+      wrap.appendChild(fallback);
+    };
+    wrap.appendChild(img);
+    const copy = document.createElement("div");
+    const name = document.createElement("div");
+    name.className = "gift-name";
+    name.textContent = g.name;
+    const effect = document.createElement("div");
+    effect.className = "gift-effect";
+    effect.textContent = g.effect;
+    copy.append(name, effect);
+    card.append(wrap, copy);
+    set.appendChild(card);
+  });
+  return set;
+}
+const giftTrack = document.getElementById("giftTrack");
+giftTrack.append(makeGiftSet(), makeGiftSet());
+
+const messages = [
+  { text: "follow me for a hoiii yeah", cls: "follow" },
+  { text: "Monthly penalty shootout winner = £20 Gift Card", cls: "prize" }
+];
+function makeTextSet() {
+  const set = document.createElement("div");
+  set.className = "text-set";
+  messages.forEach((m, i) => {
+    const msg = document.createElement("span");
+    msg.className = "ticker-message " + m.cls;
+    msg.textContent = m.text;
+    set.appendChild(msg);
+    if (i === 0) {
+      const sep = document.createElement("span");
+      sep.className = "separator";
+      sep.textContent = "✦";
+      set.appendChild(sep);
+    }
+  });
+  return set;
+}
+const textTrack = document.getElementById("textTrack");
+textTrack.append(makeTextSet(), makeTextSet());
+</script>
+</body>
+</html>
